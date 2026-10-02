@@ -29,7 +29,6 @@ export function Landing({ onStart, onOpenLeaderboard }: { onStart: () => void; o
           {t.ui.leaderboard}
         </button>
       </div>
-      <p className="mt-14 max-w-md text-xs leading-relaxed text-stone-400">{t.ui.madeWith}</p>
     </div>
   );
 }

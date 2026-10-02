@@ -79,7 +79,6 @@ export interface GameContent {
     recapTitle: string;
     yourAllocations: string;
     playAgain: string;
-    madeWith: string;
     impactInvestor: string;
     impactStakeholder: string;
     /** ---- 名号与排行榜 ---- */

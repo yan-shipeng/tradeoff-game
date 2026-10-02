@@ -37,7 +37,6 @@ const en: GameContent = {
     recapTitle: 'How you used your resources',
     yourAllocations: 'Your allocations',
     playAgain: 'Play again',
-    madeWith: 'Gameplay inspired by the FT’s The Trade-off · all text original and localized',
     impactInvestor: 'Investors',
     impactStakeholder: 'Stakeholders',
     nameTitle: 'Pick a name to play under',

@@ -37,7 +37,6 @@ const zh: GameContent = {
     recapTitle: '你的资源分配',
     yourAllocations: '各回合分配',
     playAgain: '再来一局',
-    madeWith: '玩法致敬 FT《The Trade-off》· 内容为原创本土化文案',
     impactInvestor: '投资者',
     impactStakeholder: '利益相关者',
     nameTitle: '先给自己起个名号',
