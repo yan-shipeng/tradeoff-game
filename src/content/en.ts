@@ -21,6 +21,10 @@ const en: GameContent = {
     allocateTitle: 'Allocate your resources to',
     remaining: 'Resources left',
     cumulative: (cum, lv) => `Total invested ${cum} · Level ${lv}`,
+    adjustNote: (delta) =>
+      delta > 0
+        ? `Strong approval earns you +${delta} resources this turn`
+        : `Low approval drags the company down: ${delta} resources this turn`,
     confirm: "Okay, I'm done",
     yearFollows: 'Over the next year, the factory runs on the priorities you set:',
     eventTag: 'Event',
@@ -42,7 +46,7 @@ const en: GameContent = {
       'You are the founder and CEO of Hengjie Precision, a manufacturer about to go public. You must keep the factory growing to satisfy your investors. Their approval starts at 5 — if it falls to 0, you lose.',
       'But the factory does not belong to shareholders alone. You also have thousands of workers, customers, suppliers and the surrounding community to keep happy. Stakeholder approval also starts at 5, and hitting 0 also loses the game.',
       'Over the next four years you will constantly trade off near-term orders, emissions, worker wellbeing and AI-powered modernisation. Every choice moves both groups.',
-      'Each turn you receive resources (capital, production capacity and management attention) to spread across four areas. Investment accumulates year after year — the more you have invested in an area, the higher its level, and all four can eventually be maxed out. Then watch how investors and stakeholders react. Good luck!',
+      'Each turn you receive resources (capital, production capacity and management attention) to spread across four areas. Investment accumulates year after year — the more you have invested in an area, the higher its level, and all four can eventually be maxed out. Strong approval from both groups means more resources next year; a bad year shrinks your budget. Then watch how investors and stakeholders react. Good luck!',
     ],
   },
   turns: [

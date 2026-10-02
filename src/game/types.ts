@@ -40,6 +40,14 @@ export function cumulativeOf(history: Allocation[]): Allocation {
   return cum;
 }
 
+/**
+ * 支持度对下回合资源的修正：双方支持度均值偏离 5 越多，修正越大，范围 [-2, +2]。
+ * 均值 5 → 0；均值 8.5 → +2；均值 1.5 → -2（对齐原游戏"玩得差资源缩水"的体验）。
+ */
+export function resourceAdjust(investor: number, stakeholder: number): number {
+  return Math.max(-2, Math.min(2, Math.round(((investor + stakeholder) / 2 - 5) / 2)));
+}
+
 function emptyAllocation(): Allocation {
   return { growth: 0, environment: 0, social: 0, longterm: 0 };
 }

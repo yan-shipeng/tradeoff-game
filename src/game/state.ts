@@ -1,6 +1,6 @@
 // 游戏状态机 —— 纯逻辑，文案一律不在这里
 import type { GameContent } from '@/content';
-import { AREA_ORDER, cumulativeOf, levelFor, type Allocation, type AreaId, type Impact } from './types';
+import { AREA_ORDER, cumulativeOf, levelFor, resourceAdjust, type Allocation, type AreaId, type Impact } from './types';
 
 export type ScreenName =
   | 'landing'
@@ -32,6 +32,8 @@ export interface GameState {
   eventIdx: number;
   picks: (0 | 1)[]; // 每回合两难的选项（0/1）
   failed: FailReason | null;
+  /** 上回合结束时的支持度给本回合资源带来的修正（-2..+2） */
+  adjust: number;
 }
 
 export const emptyAllocation = (): Allocation => ({ growth: 0, environment: 0, social: 0, longterm: 0 });
@@ -49,6 +51,7 @@ export const initialGameState: GameState = {
   eventIdx: 0,
   picks: [],
   failed: null,
+  adjust: 0,
 };
 
 export type Action =
@@ -80,12 +83,15 @@ function applyImpact(s: GameState, impact: Impact): Scores {
 /** 由 makeReducer 生成，content 通过闭包注入，支持运行期切换语言 */
 export function makeReducer(t: GameContent) {
   const eventMap = new Map(t.events.map((e) => [e.id, e]));
-  const turnResources = (turn: number) => t.turns[turn - 1]?.resources ?? 10;
+  const baseResources = (turn: number) => t.turns[turn - 1]?.resources ?? 10;
+  const turnResources = (s: GameState) => baseResources(s.turn) + s.adjust;
 
   function advanceTurn(s: GameState): GameState {
     if (s.failed) return { ...s, screen: 'score' };
     if (s.turn >= 4) return { ...s, screen: 'score' };
-    return { ...s, turn: s.turn + 1, screen: 'bridge', draft: emptyAllocation(), feedbackIdx: 0, eventIdx: 0, eventQueue: [] };
+    // 本回合结束时的双方支持度 → 下回合资源修正
+    const adjust = resourceAdjust(s.investor, s.stakeholder);
+    return { ...s, turn: s.turn + 1, screen: 'bridge', draft: emptyAllocation(), feedbackIdx: 0, eventIdx: 0, eventQueue: [], adjust };
   }
 
   function afterFeedback(s: GameState): GameState {
@@ -131,7 +137,7 @@ export function makeReducer(t: GameContent) {
       case 'SET_LEVEL': {
         if (s.screen !== 'allocate') return s;
         const others = AREA_ORDER.reduce((sum, k) => (k === action.area ? sum : sum + s.draft[k]), 0);
-        const remaining = turnResources(s.turn) - others;
+        const remaining = turnResources(s) - others;
         // 对齐原游戏：单项投入只受本回合剩余资源约束，不设每回合单项上限；
         // 领域等级由历年累计投入推导（见 levelFor）
         const level = Math.max(0, Math.min(action.level, remaining));

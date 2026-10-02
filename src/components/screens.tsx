@@ -58,7 +58,7 @@ export function StatusBar({ state }: { state: GameState }) {
           </div>
         </div>
         <span className="rounded-full bg-stone-900 px-3 py-1 text-xs font-bold text-white tabular-nums">
-          {t.ui.resources} {state.screen === 'allocate' ? remaining : t.turns[state.turn - 1].resources}
+          {t.ui.resources} {state.screen === 'allocate' ? remaining : t.turns[state.turn - 1].resources + state.adjust}
         </span>
         <LanguageSwitcher />
       </div>
@@ -121,7 +121,7 @@ export function YearRecapScreen({ state, onNext }: { state: GameState; onNext: (
 
 export function AllocationScreen({ state, dispatch }: { state: GameState; dispatch: Dispatch<Action> }) {
   const { t } = useLanguage();
-  const resources = t.turns[state.turn - 1].resources;
+  const resources = t.turns[state.turn - 1].resources + state.adjust;
   const remaining = resources - sumAllocation(state.draft);
   return (
     <ScreenShell
@@ -129,9 +129,14 @@ export function AllocationScreen({ state, dispatch }: { state: GameState; dispat
       children={
         <div>
           <h2 className="mb-2 text-2xl font-bold text-stone-900">{t.ui.allocateTitle}</h2>
-          <p className="mb-8 text-sm text-stone-500">
+          <p className={`text-sm text-stone-500 ${state.adjust !== 0 ? 'mb-2' : 'mb-8'}`}>
             {t.ui.remaining}：<span className="font-bold text-stone-900 tabular-nums">{remaining}</span>
           </p>
+          {state.adjust !== 0 && (
+            <p className={`mb-8 text-sm font-medium ${state.adjust > 0 ? 'text-[#4C9A2A]' : 'text-[#C2410C]'}`}>
+              {t.ui.adjustNote(state.adjust)}
+            </p>
+          )}
           <div className="space-y-3">
             {t.areas.map((area) => {
               const level = state.draft[area.id];

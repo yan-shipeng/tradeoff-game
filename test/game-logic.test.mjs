@@ -48,7 +48,7 @@ function runTurn(alloc, pick, expectEvents = null) {
     dispatch({ type: 'SET_LEVEL', area, level });
   }
   const sum = Object.values(alloc).reduce((x, y) => x + y, 0);
-  assert(sum === zh.turns[s.turn - 1].resources, `第 ${s.turn} 回合分配总额合法 (${sum})`);
+  assert(sum === zh.turns[s.turn - 1].resources + s.adjust, `第 ${s.turn} 回合分配总额合法 (${sum})`);
   dispatch({ type: 'CONFIRM_ALLOC' });
   assert(s.screen === 'yearRecap', '确认后进入年度回顾');
   if (expectEvents) assert(JSON.stringify(s.eventQueue) === JSON.stringify(expectEvents), `触发事件 = ${expectEvents} (实际 ${s.eventQueue})`);
@@ -81,8 +81,10 @@ assert(s.investor === 3 && s.stakeholder === 7.5, `回合2结束分数 inv=3 stk
 runTurn({ growth: 3, environment: 2, social: 3, longterm: 2 }, 0, []);
 assert(s.investor === 5.5 && s.stakeholder === 11, `回合3结束分数 inv=5.5 stk=11 (实际 ${s.investor}/${s.stakeholder})`);
 
-// 回合 4: 3/2/3/2 → 四项满级 → score，inv 7, stk 14
-runTurn({ growth: 3, environment: 2, social: 3, longterm: 2 }, 0);
+// 回合 3 结束 inv=5.5 stk=11，均值 8.25 → 第 4 回合资源修正 +2（10→12）
+assert(zh.turns[3].resources + s.adjust === 12, `第 4 回合资源 12 (实际 ${zh.turns[3].resources + s.adjust})`);
+// 回合 4 (12资源): 4/2/3/3 → 四项满级 → score，inv 7, stk 14
+runTurn({ growth: 4, environment: 2, social: 3, longterm: 3 }, 0);
 assert(s.screen === 'score', '第 4 回合后进入结算');
 assert(s.investor === 7 && s.stakeholder === 14, `最终分数 inv=7 stk=14 (实际 ${s.investor}/${s.stakeholder})`);
 assert(s.picks.length === 3 && s.history.length === 4, '3 次两难选择 + 4 回合历史完整');
@@ -108,6 +110,20 @@ dispatch({ type: 'SET_LEVEL', area: 'social', level: 0 });
 dispatch({ type: 'SET_LEVEL', area: 'longterm', level: 0 });
 dispatch({ type: 'SET_LEVEL', area: 'growth', level: 99 }); // 空档时可单项投入全部 10 点（对齐原游戏）
 assert(s.draft.growth === 10, `单项可拉满至全回合资源 growth=10 (实际 ${s.draft.growth})`);
+
+// ---------- 支持度 → 下回合资源修正 ----------
+// 全押 growth 无视利益相关者：回合 1 结束 stk 应大幅受挫，回合 2 adjust 为负
+dispatch({ type: 'START' });
+for (let i = 0; i < 4; i++) dispatch({ type: 'TUTORIAL_NEXT' });
+dispatch({ type: 'NEXT_STORY' });
+dispatch({ type: 'SET_LEVEL', area: 'growth', level: 10 });
+dispatch({ type: 'CONFIRM_ALLOC' });
+dispatch({ type: 'NEXT_FEEDBACK' });
+for (let i = 0; i < 4; i++) dispatch({ type: 'NEXT_FEEDBACK' });
+while (s.screen === 'event') dispatch({ type: 'NEXT_EVENT' });
+if (s.screen === 'dilemma') { dispatch({ type: 'PICK', option: 1 }); dispatch({ type: 'NEXT_RESPONSE' }); }
+assert(s.adjust < 0, `差局下回合资源修正为负 (实际 ${s.adjust})`);
+assert(zh.turns[1].resources + s.adjust < zh.turns[1].resources, '第 2 回合资源少于基础值');
 
 console.log(failures === 0 ? '\nALL TESTS PASSED' : `\n${failures} TEST(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

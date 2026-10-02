@@ -65,6 +65,8 @@ export interface GameContent {
     remaining: string;
     /** 分配屏每项下方：累计投入与当前等级 */
     cumulative: (cum: number, lv: number) => string;
+    /** 支持度修正提示（delta 为 -2..+2，不为 0 时显示） */
+    adjustNote: (delta: number) => string;
     confirm: string;
     yearFollows: string;
     eventTag: string;
