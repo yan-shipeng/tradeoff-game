@@ -4,6 +4,8 @@ import { AREA_ORDER, cumulativeOf, levelFor, resourceAdjust, type Allocation, ty
 
 export type ScreenName =
   | 'landing'
+  | 'nameEntry'
+  | 'leaderboard'
   | 'tutorial'
   | 'bridge'
   | 'intro'
@@ -20,6 +22,10 @@ export type FailReason = 'investor' | 'stakeholder';
 
 export interface GameState {
   screen: ScreenName;
+  /** 玩家名号（进入游戏前填写，随对局全程保留） */
+  playerName: string;
+  /** 打开排行榜前所在的屏幕，用于关闭榜单时原样返回；非榜单屏时为 null */
+  returnScreen: ScreenName | null;
   tutorialPage: number;
   turn: number; // 1..4
   investor: number;
@@ -40,6 +46,8 @@ export const emptyAllocation = (): Allocation => ({ growth: 0, environment: 0, s
 
 export const initialGameState: GameState = {
   screen: 'landing',
+  playerName: '',
+  returnScreen: null,
   tutorialPage: 0,
   turn: 1,
   investor: 5,
@@ -56,6 +64,9 @@ export const initialGameState: GameState = {
 
 export type Action =
   | { type: 'START' }
+  | { type: 'SET_NAME'; name: string } // 填写名号（并进入教程）
+  | { type: 'OPEN_LEADERBOARD' }
+  | { type: 'CLOSE_LEADERBOARD' } // 从榜单返回进入前的屏幕
   | { type: 'TUTORIAL_NEXT' }
   | { type: 'NEXT_STORY' } // bridge→intro，intro→allocate
   | { type: 'SET_LEVEL'; area: AreaId; level: number }
@@ -121,7 +132,20 @@ export function makeReducer(t: GameContent) {
 
     switch (action.type) {
       case 'START':
-        return { ...initialGameState, screen: 'tutorial' };
+        return { ...initialGameState, screen: 'nameEntry' };
+
+      case 'SET_NAME':
+        // 名号是进入游戏的唯一门槛；空名由 UI 侧拦截，这里再兜一层
+        return { ...s, playerName: action.name, screen: 'tutorial', tutorialPage: 0 };
+
+      case 'OPEN_LEADERBOARD':
+        // 记住当前屏：从榜单返回时原样退回，不能把玩家从反馈/两难屏踢回分配屏
+        return { ...s, screen: 'leaderboard', returnScreen: s.screen };
+
+      case 'CLOSE_LEADERBOARD': {
+        // 优先回到进入榜单前的屏幕；returnScreen 缺失时按有无名号兜底
+        return { ...s, screen: s.returnScreen ?? (s.playerName ? 'tutorial' : 'landing'), returnScreen: null };
+      }
 
       case 'TUTORIAL_NEXT': {
         if (s.screen !== 'tutorial') return s;
@@ -203,7 +227,8 @@ export function makeReducer(t: GameContent) {
         return s.screen === 'score' ? { ...s, screen: 'recap' } : s;
 
       case 'RESTART':
-        return { ...initialGameState, screen: 'tutorial' };
+        // 再来一局：保留名号，不让玩家重新输一遍
+        return { ...initialGameState, playerName: s.playerName, screen: 'tutorial' };
 
       default:
         return s;

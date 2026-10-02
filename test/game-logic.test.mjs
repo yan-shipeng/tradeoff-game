@@ -1,5 +1,5 @@
 // 无头逻辑测试：模拟完整 4 回合游戏，逐项断言计分与事件触发
-import { makeReducer, initialGameState, zh, en } from './bundle.mjs';
+import { makeReducer, initialGameState, zh, en, scoreOf, entryFromState, normalizeName, sortEntries, mergeEntries, rankOf, NAME_MAX } from './bundle.mjs';
 
 let failures = 0;
 function assert(cond, msg) {
@@ -37,6 +37,7 @@ const dispatch = (a) => {
 };
 
 dispatch({ type: 'START' });
+dispatch({ type: 'SET_NAME', name: '测试玩家' });
 for (let i = 0; i < 4; i++) dispatch({ type: 'TUTORIAL_NEXT' });
 assert(s.screen === 'intro' && s.turn === 1, '教程结束进入回合 1 开场');
 
@@ -96,6 +97,7 @@ assert(s.screen === 'tutorial' && s.investor === 5 && s.stakeholder === 5, '重�
 
 // ---------- SET_LEVEL 资源约束（对齐原游戏：单项只受剩余资源约束，无每回合单项上限） ----------
 dispatch({ type: 'START' });
+dispatch({ type: 'SET_NAME', name: '测试玩家' });
 for (let i = 0; i < 4; i++) dispatch({ type: 'TUTORIAL_NEXT' });
 dispatch({ type: 'NEXT_STORY' });
 dispatch({ type: 'SET_LEVEL', area: 'growth', level: 3 });
@@ -114,6 +116,7 @@ assert(s.draft.growth === 10, `单项可拉满至全回合资源 growth=10 (实�
 // ---------- 支持度 → 下回合资源修正 ----------
 // 全押 growth 无视利益相关者：回合 1 结束 stk 应大幅受挫，回合 2 adjust 为负
 dispatch({ type: 'START' });
+dispatch({ type: 'SET_NAME', name: '测试玩家' });
 for (let i = 0; i < 4; i++) dispatch({ type: 'TUTORIAL_NEXT' });
 dispatch({ type: 'NEXT_STORY' });
 dispatch({ type: 'SET_LEVEL', area: 'growth', level: 10 });
@@ -124,6 +127,105 @@ while (s.screen === 'event') dispatch({ type: 'NEXT_EVENT' });
 if (s.screen === 'dilemma') { dispatch({ type: 'PICK', option: 1 }); dispatch({ type: 'NEXT_RESPONSE' }); }
 assert(s.adjust < 0, `差局下回合资源修正为负 (实际 ${s.adjust})`);
 assert(zh.turns[1].resources + s.adjust < zh.turns[1].resources, '第 2 回合资源少于基础值');
+
+// ---------- 名号与排行榜 ----------
+
+// 名号清洗：去首尾空白 / 压连续空白 / 截断 / 空名回退
+assert(normalizeName('  小林  ') === '小林', '名号去首尾空白');
+assert(normalizeName('林   小   宝') === '林 小 宝', '名号压缩连续空白');
+assert(normalizeName('一二三四五六七八九十十一十二十三') === '一二三四五六七八九十十一', `名号截断到 ${NAME_MAX}`);
+assert(normalizeName('   ') === '匿名玩家', '空名回退为匿名玩家');
+
+// 积分 = 双方支持度之和，负值按 0 计
+assert(scoreOf({ investor: 7, stakeholder: 14 }) === 21, '积分 = 双方支持度之和');
+assert(scoreOf({ investor: -1.5, stakeholder: 3 }) === 3, '积分把负支持度按 0 计');
+
+// 出局玩家积分不为负、且带 failed 标记
+const failEntry = entryFromState({ ...initialGameState, investor: -2, stakeholder: 4, failed: 'investor' }, 'p_fail', '出局者', 1000);
+assert(failEntry.score === 4 && failEntry.failed === true, '出局记录 score=4 且 failed=true');
+
+// 排序：积分降序 → 未出局优先 → 时间早者在前
+const board = [
+  { playerId: 'a', name: 'A', score: 10, investor: 5, stakeholder: 5, failed: false, at: 300 },
+  { playerId: 'b', name: 'B', score: 18, investor: 9, stakeholder: 9, failed: false, at: 200 },
+  { playerId: 'c', name: 'C', score: 10, investor: 6, stakeholder: 4, failed: true, at: 100 },
+  { playerId: 'd', name: 'D', score: 10, investor: 5, stakeholder: 5, failed: false, at: 100 },
+];
+const sorted = sortEntries(board);
+assert(sorted.map((e) => e.playerId).join() === 'b,d,a,c', `排序 积分降序→未出局优先→早者在前 (实际 ${sorted.map((e) => e.playerId).join()})`);
+
+// 名次：第 1 名为 b；出局者 c 排最后
+assert(rankOf(board, 'b') === 1, 'rankOf 第 1 名');
+assert(rankOf(board, 'c') === 4, 'rankOf 出局者排最后');
+assert(rankOf(board, 'nobody') === 0, 'rankOf 未上榜返回 0');
+
+// 合并：同一 playerId 保留积分更高的那条（重复提交是覆盖，不是追加）
+const mergedBoard = mergeEntries(
+  [{ playerId: 'a', name: 'A', score: 10, investor: 5, stakeholder: 5, failed: false, at: 300 }],
+  [
+    { playerId: 'a', name: 'A', score: 16, investor: 8, stakeholder: 8, failed: false, at: 400 },
+    { playerId: 'x', name: 'X', score: 12, investor: 6, stakeholder: 6, failed: false, at: 500 },
+  ],
+);
+assert(mergedBoard.length === 2, `合并后去重为 2 条 (实际 ${mergedBoard.length})`);
+assert(mergedBoard[0].playerId === 'a' && mergedBoard[0].score === 16, '同一玩家保留积分更高的记录');
+
+// ---------- 名号/排行榜的状态机流转 ----------
+const lbReducer = makeReducer(zh);
+let ns = initialGameState;
+const nd = (a) => {
+  ns = lbReducer(ns, a);
+};
+
+nd({ type: 'START' });
+assert(ns.screen === 'nameEntry', 'START 后先进入名号输入屏');
+nd({ type: 'SET_NAME', name: '小林' });
+assert(ns.screen === 'tutorial' && ns.playerName === '小林', 'SET_NAME 后带名号进入教程');
+
+// 开局前可看排行榜并返回（此时已填过名号，回到教程屏）
+nd({ type: 'OPEN_LEADERBOARD' });
+assert(ns.screen === 'leaderboard', '可打开排行榜');
+nd({ type: 'CLOSE_LEADERBOARD' });
+assert(ns.screen === 'tutorial', '关闭排行榜回到进入前的教程屏');
+
+// 完全未开局（无名号）时从首页打开榜单，关闭后回着陆页
+nd({ type: 'RESTART' });
+ns = { ...initialGameState };
+const freshOpen = lbReducer(ns, { type: 'OPEN_LEADERBOARD' });
+assert(freshOpen.returnScreen === 'landing', '首页打开榜单记住来源屏 landing');
+assert(lbReducer(freshOpen, { type: 'CLOSE_LEADERBOARD' }).screen === 'landing', '无名号时关闭榜单回着陆页');
+
+// 再来一局保留名号
+const midGame = { ...ns, playerName: '小林', screen: 'recap', investor: 11, stakeholder: 9 };
+const restarted = lbReducer(midGame, { type: 'RESTART' });
+assert(restarted.screen === 'tutorial' && restarted.playerName === '小林', 'RESTART 保留名号');
+assert(restarted.investor === 5 && restarted.stakeholder === 5, 'RESTART 重置支持度');
+
+// 对局中关闭排行榜：必须原样退回进入榜单前的屏幕（不能把玩家从两难屏踢回分配屏）
+const inGame = {
+  ...ns,
+  playerName: '小林',
+  screen: 'dilemma',
+  turn: 2,
+  history: [{ growth: 1, environment: 1, social: 1, longterm: 1 }],
+};
+const opened = lbReducer(inGame, { type: 'OPEN_LEADERBOARD' });
+assert(opened.screen === 'leaderboard' && opened.returnScreen === 'dilemma', '打开榜单记住来源屏 dilemma');
+assert(lbReducer(opened, { type: 'CLOSE_LEADERBOARD' }).screen === 'dilemma', '从榜单原样退回两难屏');
+
+// 结算屏打开榜单也要原样退回
+const atScore = lbReducer({ ...inGame, screen: 'score' }, { type: 'OPEN_LEADERBOARD' });
+assert(lbReducer(atScore, { type: 'CLOSE_LEADERBOARD' }).screen === 'score', '从榜单原样退回结算屏');
+
+// 语言包具备排行榜全部文案
+for (const [lang, c] of [['zh', zh], ['en', en]]) {
+  const keys = ['nameTitle', 'nameHint', 'nameLabel', 'namePlaceholder', 'nameConfirm', 'leaderboard', 'leaderboardTitle', 'leaderboardScopeLocal', 'leaderboardScopeCloud', 'lbRank', 'lbName', 'lbScore', 'lbEmpty', 'lbYou', 'lbFailed', 'lbNotRanked', 'lbClose'];
+  const missing = keys.filter((k) => typeof c.ui[k] !== 'string' || c.ui[k].length === 0);
+  assert(missing.length === 0, `${lang} 排行榜文案齐全 (缺: ${missing.join() || '无'})`);
+  assert(c.ui.playingAs('X').includes('X'), `${lang}.ui.playingAs 带名号`);
+  assert(c.ui.scoreSubmitted(3).includes('3'), `${lang}.ui.scoreSubmitted 带名次`);
+  assert(c.ui.lbMyRank(2, 9).includes('2') && c.ui.lbMyRank(2, 9).includes('9'), `${lang}.ui.lbMyRank 带名次与总数`);
+}
 
 console.log(failures === 0 ? '\nALL TESTS PASSED' : `\n${failures} TEST(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

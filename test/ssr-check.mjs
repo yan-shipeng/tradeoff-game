@@ -26,6 +26,7 @@ const zhHtml = renderToString(createElement(App));
 assert(zhHtml.includes('权衡'), 'zh 标题渲染');
 assert(zhHtml.includes('你能平衡利润与使命吗？'), 'zh 副标题渲染');
 assert(zhHtml.includes('开始游戏'), 'zh 开始按钮渲染');
+assert(zhHtml.includes('排行榜'), 'zh 首页有排行榜入口');
 assert(!zhHtml.includes('Start game'), 'zh 页面不混入英文');
 
 shimEnv('en');
@@ -33,6 +34,7 @@ const enHtml = renderToString(createElement(App));
 assert(enHtml.includes('The Trade-off'), 'en 标题渲染');
 assert(enHtml.includes('Can you balance profit and purpose?'), 'en 副标题渲染');
 assert(enHtml.includes('Start game'), 'en 开始按钮渲染');
+assert(enHtml.includes('Leaderboard'), 'en 首页有排行榜入口');
 
 console.log(failures === 0 ? '\nSSR SMOKE PASSED' : `\n${failures} SSR CHECK(S) FAILED`);
 process.exit(failures ? 1 : 0);

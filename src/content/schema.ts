@@ -82,6 +82,42 @@ export interface GameContent {
     madeWith: string;
     impactInvestor: string;
     impactStakeholder: string;
+    /** ---- 名号与排行榜 ---- */
+    /** 名号输入屏 */
+    nameTitle: string;
+    nameHint: string;
+    nameLabel: string;
+    namePlaceholder: string;
+    nameConfirm: string;
+    /** 顶栏/状态栏上的"以某名号游戏中"标签 */
+    playingAs: (name: string) => string;
+    /** 榜单入口按钮 */
+    leaderboard: string;
+    leaderboardTitle: string;
+    /** 榜单数据范围说明：本机 / 全班 */
+    leaderboardScopeLocal: string;
+    leaderboardScopeCloud: string;
+    /** 榜单表头 */
+    lbRank: string;
+    lbName: string;
+    lbScore: string;
+    lbInvestor: string;
+    lbStakeholder: string;
+    /** 榜单为空时的提示 */
+    lbEmpty: string;
+    /** 自己的那条记录标记 */
+    lbYou: string;
+    /** 出局记录标记 */
+    lbFailed: string;
+    /** 我的名次 */
+    lbMyRank: (rank: number, total: number) => string;
+    /** 未上榜 */
+    lbNotRanked: string;
+    lbClose: string;
+    lbClear: string;
+    lbClearConfirm: string;
+    /** 结算屏：自动提交成绩的说明 */
+    scoreSubmitted: (rank: number) => string;
   };
   tutorial: { pages: string[] };
   turns: TurnContent[];

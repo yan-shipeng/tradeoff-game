@@ -6,8 +6,9 @@ import type { Dispatch } from 'react';
 import { AREA_ICONS, FACES, HERO_IMAGE } from '@/assets/img';
 import { ImpactChips, PrimaryButton, ScoreBar, ScreenShell } from './bits';
 import { LanguageSwitcher } from './LanguageSwitcher';
+import { PlayerTag } from './Leaderboard';
 
-export function Landing({ onStart }: { onStart: () => void }) {
+export function Landing({ onStart, onOpenLeaderboard }: { onStart: () => void; onOpenLeaderboard: () => void }) {
   const { t } = useLanguage();
   return (
     <div className="flex min-h-[calc(100vh-8rem)] flex-col items-center justify-center text-center animate-[fadein_.5s_ease]">
@@ -19,7 +20,15 @@ export function Landing({ onStart }: { onStart: () => void }) {
       />
       <h1 className="mb-3 text-6xl font-black tracking-tight text-stone-900">{t.meta.title}</h1>
       <p className="mb-10 text-xl text-stone-600">{t.meta.subtitle}</p>
-      <PrimaryButton onClick={onStart}>{t.meta.start}</PrimaryButton>
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        <PrimaryButton onClick={onStart}>{t.meta.start}</PrimaryButton>
+        <button
+          onClick={onOpenLeaderboard}
+          className="rounded-full border-2 border-stone-900 bg-white px-8 py-3 text-base font-semibold text-stone-900 transition-colors hover:bg-stone-100"
+        >
+          {t.ui.leaderboard}
+        </button>
+      </div>
       <p className="mt-14 max-w-md text-xs leading-relaxed text-stone-400">{t.ui.madeWith}</p>
     </div>
   );
@@ -40,7 +49,13 @@ export function FaceAvatar({ kind, value, size = 40 }: { kind: 'investor' | 'sta
   );
 }
 
-export function StatusBar({ state }: { state: GameState }) {
+export function StatusBar({
+  state,
+  onOpenLeaderboard,
+}: {
+  state: GameState;
+  onOpenLeaderboard: () => void;
+}) {
   const { t } = useLanguage();
   const remaining = t.turns[state.turn - 1].resources + state.adjust - sumAllocation(state.draft);
   return (
@@ -48,10 +63,11 @@ export function StatusBar({ state }: { state: GameState }) {
       <div className="mx-auto flex max-w-2xl flex-col gap-2 px-5 py-3">
         <div className="flex items-center justify-between gap-3">
           <span className="text-xs font-bold tracking-widest text-stone-500 uppercase">{t.ui.turnOf(state.turn)}</span>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <span className="rounded-full bg-stone-900 px-3 py-1 text-xs font-bold text-white tabular-nums">
               {t.ui.resources} {state.screen === 'allocate' ? remaining : t.turns[state.turn - 1].resources + state.adjust}
             </span>
+            {state.playerName && <PlayerTag name={state.playerName} onClick={onOpenLeaderboard} />}
             <LanguageSwitcher />
           </div>
         </div>
@@ -70,10 +86,18 @@ export function StatusBar({ state }: { state: GameState }) {
   );
 }
 
-/** 非游戏屏（着陆/结算/回顾）顶部的语言栏 */
-export function TopBar() {
+/** 非游戏屏（着陆/结算/回顾）顶部的操作栏：显示名号 + 排行榜入口 + 语言 */
+export function TopBar({ playerName, onOpenLeaderboard }: { playerName?: string; onOpenLeaderboard: () => void }) {
+  const { t } = useLanguage();
   return (
-    <div className="mx-auto flex max-w-2xl justify-end px-5 pt-4">
+    <div className="mx-auto flex max-w-2xl items-center justify-end gap-2 px-5 pt-4">
+      {playerName && <PlayerTag name={playerName} onClick={onOpenLeaderboard} />}
+      <button
+        onClick={onOpenLeaderboard}
+        className="rounded-full border border-stone-300 bg-white px-3 py-1 text-xs font-semibold text-stone-700 transition-colors hover:bg-stone-100"
+      >
+        {t.ui.leaderboard}
+      </button>
       <LanguageSwitcher />
     </div>
   );
@@ -310,7 +334,7 @@ export function ResponseScreen({ state, onNext }: { state: GameState; onNext: ()
   );
 }
 
-export function ScoreScreen({ state, onNext }: { state: GameState; onNext: () => void }) {
+export function ScoreScreen({ state, myRank, onNext }: { state: GameState; myRank: number; onNext: () => void }) {
   const { t } = useLanguage();
   const cls = (v: number) => (v <= 3 ? 'sad' : v <= 6.5 ? 'neutral' : 'happy');
   const ending = state.failed
@@ -332,6 +356,17 @@ export function ScoreScreen({ state, onNext }: { state: GameState; onNext: () =>
             <p className="text-stone-700">{t.ui.finalInvestor(Math.max(0, state.investor), t.endings.averageInvestor)}</p>
             <p className="text-stone-700">{t.ui.finalStakeholder(Math.max(0, state.stakeholder), t.endings.averageStakeholder)}</p>
           </div>
+          {state.playerName && (
+            <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+              <span className="text-sm font-bold tracking-widest text-stone-500 uppercase">{t.ui.leaderboard}</span>
+              <span className="text-2xl font-black tabular-nums text-stone-900">
+                {Math.max(0, state.investor) + Math.max(0, state.stakeholder)}
+              </span>
+              <span className="text-sm text-stone-500">{t.ui.lbScore}</span>
+              <span className="text-sm font-semibold text-stone-600">{t.ui.playingAs(state.playerName)}</span>
+              {myRank > 0 && <span className="text-sm font-semibold text-[#C2410C]">{t.ui.scoreSubmitted(myRank)}</span>}
+            </div>
+          )}
         </div>
       }
       footer={<PrimaryButton onClick={onNext}>{t.ui.recapTitle}</PrimaryButton>}
@@ -339,7 +374,15 @@ export function ScoreScreen({ state, onNext }: { state: GameState; onNext: () =>
   );
 }
 
-export function RecapScreen({ state, onRestart }: { state: GameState; onRestart: () => void }) {
+export function RecapScreen({
+  state,
+  onRestart,
+  onOpenLeaderboard,
+}: {
+  state: GameState;
+  onRestart: () => void;
+  onOpenLeaderboard: () => void;
+}) {
   const { t } = useLanguage();
   return (
     <ScreenShell
@@ -364,7 +407,17 @@ export function RecapScreen({ state, onRestart }: { state: GameState; onRestart:
           </div>
         </div>
       }
-      footer={<PrimaryButton onClick={onRestart}>{t.ui.playAgain}</PrimaryButton>}
+      footer={
+        <div className="flex flex-wrap items-center gap-3">
+          <PrimaryButton onClick={onRestart}>{t.ui.playAgain}</PrimaryButton>
+          <button
+            onClick={onOpenLeaderboard}
+            className="rounded-full border-2 border-stone-900 bg-white px-8 py-3 text-base font-semibold text-stone-900 transition-colors hover:bg-stone-100"
+          >
+            {t.ui.leaderboard}
+          </button>
+        </div>
+      }
     />
   );
 }
