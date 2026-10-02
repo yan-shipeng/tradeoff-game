@@ -42,7 +42,7 @@ export function FaceAvatar({ kind, value, size = 40 }: { kind: 'investor' | 'sta
 
 export function StatusBar({ state }: { state: GameState }) {
   const { t } = useLanguage();
-  const remaining = t.turns[state.turn - 1].resources - sumAllocation(state.draft);
+  const remaining = t.turns[state.turn - 1].resources + state.adjust - sumAllocation(state.draft);
   return (
     <div className="sticky top-0 z-40 border-b border-stone-200 bg-[#FAF8F5]/90 backdrop-blur">
       <div className="mx-auto flex max-w-2xl flex-wrap items-center gap-x-5 gap-y-2 px-5 py-3">
