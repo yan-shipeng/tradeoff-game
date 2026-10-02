@@ -45,9 +45,17 @@ export function StatusBar({ state }: { state: GameState }) {
   const remaining = t.turns[state.turn - 1].resources + state.adjust - sumAllocation(state.draft);
   return (
     <div className="sticky top-0 z-40 border-b border-stone-200 bg-[#FAF8F5]/90 backdrop-blur">
-      <div className="mx-auto flex max-w-2xl flex-wrap items-center gap-x-5 gap-y-2 px-5 py-3">
-        <span className="text-xs font-bold tracking-widest text-stone-500 uppercase">{t.ui.turnOf(state.turn)}</span>
-        <div className="flex min-w-[220px] flex-1 gap-4">
+      <div className="mx-auto flex max-w-2xl flex-col gap-2 px-5 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-xs font-bold tracking-widest text-stone-500 uppercase">{t.ui.turnOf(state.turn)}</span>
+          <div className="flex items-center gap-3">
+            <span className="rounded-full bg-stone-900 px-3 py-1 text-xs font-bold text-white tabular-nums">
+              {t.ui.resources} {state.screen === 'allocate' ? remaining : t.turns[state.turn - 1].resources + state.adjust}
+            </span>
+            <LanguageSwitcher />
+          </div>
+        </div>
+        <div className="flex gap-5">
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <FaceAvatar kind="investor" value={state.investor} size={36} />
             <ScoreBar label={t.ui.investors} value={state.investor} color="#F48158" />
@@ -57,10 +65,6 @@ export function StatusBar({ state }: { state: GameState }) {
             <ScoreBar label={t.ui.stakeholders} value={state.stakeholder} color="#4C9A2A" />
           </div>
         </div>
-        <span className="rounded-full bg-stone-900 px-3 py-1 text-xs font-bold text-white tabular-nums">
-          {t.ui.resources} {state.screen === 'allocate' ? remaining : t.turns[state.turn - 1].resources + state.adjust}
-        </span>
-        <LanguageSwitcher />
       </div>
     </div>
   );
