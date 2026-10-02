@@ -40,12 +40,14 @@ export function ImpactChips({ impact }: { impact: Impact }) {
 export function ScoreBar({ label, value, color }: { label: string; value: number; color: string }) {
   const pct = Math.max(0, Math.min(100, (value / 10) * 100));
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-2">
-      <span className="hidden truncate text-xs font-medium text-stone-600 sm:inline">{label}</span>
-      <div className="h-2 flex-1 overflow-hidden rounded-full bg-stone-200">
-        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: color }} />
+    <div className="min-w-0 flex-1">
+      <div className="truncate text-[10px] font-semibold tracking-wide text-stone-500">{label}</div>
+      <div className="flex items-center gap-1.5">
+        <div className="h-2 min-w-8 flex-1 overflow-hidden rounded-full bg-stone-200">
+          <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: color }} />
+        </div>
+        <span className="shrink-0 text-sm font-bold tabular-nums text-stone-900">{value}</span>
       </div>
-      <span className="w-8 text-right text-sm font-bold tabular-nums text-stone-900">{value}</span>
     </div>
   );
 }

@@ -48,11 +48,11 @@ export function StatusBar({ state }: { state: GameState }) {
       <div className="mx-auto flex max-w-2xl flex-wrap items-center gap-x-5 gap-y-2 px-5 py-3">
         <span className="text-xs font-bold tracking-widest text-stone-500 uppercase">{t.ui.turnOf(state.turn)}</span>
         <div className="flex min-w-[220px] flex-1 gap-4">
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
             <FaceAvatar kind="investor" value={state.investor} size={36} />
             <ScoreBar label={t.ui.investors} value={state.investor} color="#F48158" />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
             <FaceAvatar kind="stakeholder" value={state.stakeholder} size={36} />
             <ScoreBar label={t.ui.stakeholders} value={state.stakeholder} color="#4C9A2A" />
           </div>
