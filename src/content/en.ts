@@ -20,6 +20,7 @@ const en: GameContent = {
     tutorialPlay: 'Play',
     allocateTitle: 'Allocate your resources to',
     remaining: 'Resources left',
+    cumulative: (cum, lv) => `Total invested ${cum} · Level ${lv}`,
     confirm: "Okay, I'm done",
     yearFollows: 'Over the next year, the factory runs on the priorities you set:',
     eventTag: 'Event',
@@ -41,7 +42,7 @@ const en: GameContent = {
       'You are the founder and CEO of Hengjie Precision, a manufacturer about to go public. You must keep the factory growing to satisfy your investors. Their approval starts at 5 — if it falls to 0, you lose.',
       'But the factory does not belong to shareholders alone. You also have thousands of workers, customers, suppliers and the surrounding community to keep happy. Stakeholder approval also starts at 5, and hitting 0 also loses the game.',
       'Over the next four years you will constantly trade off near-term orders, emissions, worker wellbeing and AI-powered modernisation. Every choice moves both groups.',
-      'Each turn you receive resources (capital, production capacity and management attention). Allocate them across four areas, then watch how investors and stakeholders react. Good luck!',
+      'Each turn you receive resources (capital, production capacity and management attention) to spread across four areas. Investment accumulates year after year — the more you have invested in an area, the higher its level, and all four can eventually be maxed out. Then watch how investors and stakeholders react. Good luck!',
     ],
   },
   turns: [
@@ -73,6 +74,7 @@ const en: GameContent = {
   areas: [
     {
       id: 'growth',
+      thresholds: [1, 4, 6],
       name: 'Orders & delivery',
       feedback: [
         [
@@ -103,6 +105,7 @@ const en: GameContent = {
     },
     {
       id: 'environment',
+      thresholds: [1, 3, 5],
       name: 'Emissions & environment',
       feedback: [
         [
@@ -133,6 +136,7 @@ const en: GameContent = {
     },
     {
       id: 'social',
+      thresholds: [1, 3, 5],
       name: 'Workers & community',
       feedback: [
         [
@@ -163,6 +167,7 @@ const en: GameContent = {
     },
     {
       id: 'longterm',
+      thresholds: [1, 3, 5],
       name: 'AI modernisation',
       feedback: [
         [

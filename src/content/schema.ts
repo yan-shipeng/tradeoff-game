@@ -12,6 +12,8 @@ export interface FeedbackCell {
 export interface AreaContent {
   id: AreaId;
   name: string;
+  /** 达到 1/2/3 级所需的"累计投入"（投入逐年累计，等级按累计值推导） */
+  thresholds: [number, number, number];
   /** feedback[回合序号 0..3][投入等级 0..3] */
   feedback: FeedbackCell[][];
 }
@@ -61,6 +63,8 @@ export interface GameContent {
     tutorialPlay: string;
     allocateTitle: string;
     remaining: string;
+    /** 分配屏每项下方：累计投入与当前等级 */
+    cumulative: (cum: number, lv: number) => string;
     confirm: string;
     yearFollows: string;
     eventTag: string;

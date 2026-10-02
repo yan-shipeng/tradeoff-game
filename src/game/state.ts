@@ -1,6 +1,6 @@
 // 游戏状态机 —— 纯逻辑，文案一律不在这里
 import type { GameContent } from '@/content';
-import { AREA_ORDER, MAX_LEVEL, type Allocation, type AreaId, type Impact } from './types';
+import { AREA_ORDER, cumulativeOf, levelFor, type Allocation, type AreaId, type Impact } from './types';
 
 export type ScreenName =
   | 'landing'
@@ -132,7 +132,9 @@ export function makeReducer(t: GameContent) {
         if (s.screen !== 'allocate') return s;
         const others = AREA_ORDER.reduce((sum, k) => (k === action.area ? sum : sum + s.draft[k]), 0);
         const remaining = turnResources(s.turn) - others;
-        const level = Math.max(0, Math.min(MAX_LEVEL, action.level, remaining));
+        // 对齐原游戏：单项投入只受本回合剩余资源约束，不设每回合单项上限；
+        // 领域等级由历年累计投入推导（见 levelFor）
+        const level = Math.max(0, Math.min(action.level, remaining));
         return { ...s, draft: { ...s.draft, [action.area]: level } };
       }
 
@@ -140,8 +142,9 @@ export function makeReducer(t: GameContent) {
         if (s.screen !== 'allocate') return s;
         const history = [...s.history, s.draft];
         const eventQueue = t.events.filter((e) => e.when(history)).map((e) => e.id);
-        // 立即应用第一个领域（growth）的反馈影响
-        const r = applyImpact({ ...s, history }, t.areas[0].feedback[s.turn - 1][s.draft.growth].impact);
+        const cum = cumulativeOf(history);
+        // 立即应用第一个领域（growth）的反馈影响，等级由累计投入推导
+        const r = applyImpact({ ...s, history }, t.areas[0].feedback[s.turn - 1][levelFor(cum.growth, t.areas[0].thresholds)].impact);
         return {
           ...s,
           history,
@@ -161,7 +164,8 @@ export function makeReducer(t: GameContent) {
         const next = s.feedbackIdx + 1;
         if (next < AREA_ORDER.length) {
           const area = t.areas[next];
-          const cell = area.feedback[s.turn - 1][s.draft[area.id]];
+          const cum = cumulativeOf(s.history);
+          const cell = area.feedback[s.turn - 1][levelFor(cum[area.id], area.thresholds)];
           const r = applyImpact(s, cell.impact);
           return { ...s, screen: 'feedback', feedbackIdx: next, investor: r.investor, stakeholder: r.stakeholder, failed: r.failed };
         }

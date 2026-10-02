@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "esbuild src/__test_entry.ts --bundle --format=esm --platform=node --outfile=test/bundle.mjs --log-level=warning && node test/game-logic.test.mjs && esbuild src/App.tsx --bundle --format=esm --platform=node --jsx=automatic --tsconfig=tsconfig.app.json --external:react --external:react-dom --outfile=test/app-bundle.mjs --log-level=warning && node test/ssr-check.mjs"
+    "test": "esbuild src/__test_entry.ts --bundle --format=esm --platform=node --outfile=test/bundle.mjs --log-level=warning && node test/game-logic.test.mjs && esbuild src/App.tsx --bundle --format=esm --platform=node --jsx=automatic --tsconfig=tsconfig.app.json --external:react --external:react-dom --loader:.png=dataurl --loader:.jpg=dataurl --outfile=test/app-bundle.mjs --log-level=warning && node test/ssr-check.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

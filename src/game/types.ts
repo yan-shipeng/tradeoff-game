@@ -23,6 +23,27 @@ export const AREA_COLORS: Record<AreaId, string> = {
 export const MAX_LEVEL = 3;
 export const TURN_COUNT = 4;
 
+/**
+ * 由"累计投入"推导领域等级（对齐原游戏机制：投入逐年累计，等级看累计值）。
+ * thresholds = 达到 1/2/3 级分别所需的累计投入。
+ */
+export function levelFor(cumulative: number, thresholds: readonly [number, number, number]): number {
+  let lv = 0;
+  for (const t of thresholds) if (cumulative >= t) lv++;
+  return Math.min(lv, MAX_LEVEL);
+}
+
+/** 历年分配之和（history 含本回合时即为本回合确认后的累计） */
+export function cumulativeOf(history: Allocation[]): Allocation {
+  const cum = emptyAllocation();
+  for (const h of history) for (const k of AREA_ORDER) cum[k] += h[k];
+  return cum;
+}
+
+function emptyAllocation(): Allocation {
+  return { growth: 0, environment: 0, social: 0, longterm: 0 };
+}
+
 /** 结局评级阈值：0–3 差 / 3.5–6.5 中 / 7+ 好 */
 export function classifyHappiness(score: number): Happiness {
   if (score <= 3) return 'sad';

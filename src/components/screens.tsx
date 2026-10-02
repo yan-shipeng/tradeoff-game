@@ -1,8 +1,9 @@
 // 各屏幕组件：所有文案都取自 useLanguage()，支持任意时刻切换语言
 import { useLanguage } from '@/i18n/LanguageContext';
-import { AREA_COLORS, AREA_ORDER, MAX_LEVEL, sumAllocation } from '@/game/types';
+import { AREA_COLORS, AREA_ORDER, MAX_LEVEL, classifyHappiness, cumulativeOf, levelFor, sumAllocation } from '@/game/types';
 import type { Action, GameState } from '@/game/state';
 import type { Dispatch } from 'react';
+import { AREA_ICONS, FACES, HERO_IMAGE } from '@/assets/img';
 import { ImpactChips, PrimaryButton, ScoreBar, ScreenShell } from './bits';
 import { LanguageSwitcher } from './LanguageSwitcher';
 
@@ -11,11 +12,31 @@ export function Landing({ onStart }: { onStart: () => void }) {
   return (
     <div className="flex min-h-[calc(100vh-8rem)] flex-col items-center justify-center text-center animate-[fadein_.5s_ease]">
       <div className="mb-4 text-xs font-bold tracking-[0.35em] text-stone-500">THE TRADE-OFF</div>
+      <img
+        src={HERO_IMAGE}
+        alt={t.meta.company}
+        className="mb-8 w-full max-w-xl rounded-3xl border border-stone-200 shadow-sm"
+      />
       <h1 className="mb-3 text-6xl font-black tracking-tight text-stone-900">{t.meta.title}</h1>
       <p className="mb-10 text-xl text-stone-600">{t.meta.subtitle}</p>
       <PrimaryButton onClick={onStart}>{t.meta.start}</PrimaryButton>
       <p className="mt-14 max-w-md text-xs leading-relaxed text-stone-400">{t.ui.madeWith}</p>
     </div>
+  );
+}
+
+/** 圆形人物头像（插画为徽章式构图，圆形裁切即原游戏的 medallion 风格） */
+export function FaceAvatar({ kind, value, size = 40 }: { kind: 'investor' | 'stakeholder'; value: number; size?: number }) {
+  const mood = classifyHappiness(value);
+  return (
+    <img
+      src={FACES[kind][mood]}
+      alt={kind}
+      width={size}
+      height={size}
+      className="shrink-0 rounded-full border border-stone-900/10 object-cover shadow-sm"
+      style={{ width: size, height: size }}
+    />
   );
 }
 
@@ -27,8 +48,14 @@ export function StatusBar({ state }: { state: GameState }) {
       <div className="mx-auto flex max-w-2xl flex-wrap items-center gap-x-5 gap-y-2 px-5 py-3">
         <span className="text-xs font-bold tracking-widest text-stone-500 uppercase">{t.ui.turnOf(state.turn)}</span>
         <div className="flex min-w-[220px] flex-1 gap-4">
-          <ScoreBar label={t.ui.investors} value={state.investor} color="#F48158" />
-          <ScoreBar label={t.ui.stakeholders} value={state.stakeholder} color="#4C9A2A" />
+          <div className="flex items-center gap-2">
+            <FaceAvatar kind="investor" value={state.investor} size={36} />
+            <ScoreBar label={t.ui.investors} value={state.investor} color="#F48158" />
+          </div>
+          <div className="flex items-center gap-2">
+            <FaceAvatar kind="stakeholder" value={state.stakeholder} size={36} />
+            <ScoreBar label={t.ui.stakeholders} value={state.stakeholder} color="#4C9A2A" />
+          </div>
         </div>
         <span className="rounded-full bg-stone-900 px-3 py-1 text-xs font-bold text-white tabular-nums">
           {t.ui.resources} {state.screen === 'allocate' ? remaining : t.turns[state.turn - 1].resources}
@@ -109,12 +136,35 @@ export function AllocationScreen({ state, dispatch }: { state: GameState; dispat
             {t.areas.map((area) => {
               const level = state.draft[area.id];
               const others = AREA_ORDER.reduce((sum, k) => (k === area.id ? sum : sum + state.draft[k]), 0);
-              const maxUp = Math.min(MAX_LEVEL, resources - others);
+              const maxUp = resources - others;
+              const cum = cumulativeOf(state.history)[area.id] + level;
+              const lv = levelFor(cum, area.thresholds);
               return (
                 <div key={area.id} className="flex items-center justify-between gap-4 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
                   <div className="flex items-center gap-3">
-                    <span className="h-8 w-1.5 rounded-full" style={{ backgroundColor: AREA_COLORS[area.id] }} />
-                    <span className="text-base font-semibold text-stone-800">{area.name}</span>
+                    <img
+                      src={AREA_ICONS[area.id]}
+                      alt={area.name}
+                      width={44}
+                      height={44}
+                      className="shrink-0 rounded-full border border-stone-900/10 bg-[#FAF8F5] object-cover"
+                      style={{ width: 44, height: 44 }}
+                    />
+                    <div>
+                      <span className="block text-base font-semibold text-stone-800">{area.name}</span>
+                      <span className="mt-0.5 flex items-center gap-2 text-xs text-stone-400">
+                        <span>{t.ui.cumulative(cum, lv)}</span>
+                        <span className="flex gap-1">
+                          {Array.from({ length: MAX_LEVEL }, (_, i) => (
+                            <span
+                              key={i}
+                              className={`h-1.5 w-4 rounded-full ${i < lv ? '' : 'bg-stone-200'}`}
+                              style={i < lv ? { backgroundColor: AREA_COLORS[area.id] } : undefined}
+                            />
+                          ))}
+                        </span>
+                      </span>
+                    </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <button
@@ -124,15 +174,9 @@ export function AllocationScreen({ state, dispatch }: { state: GameState; dispat
                     >
                       −
                     </button>
-                    <div className="flex gap-1.5">
-                      {Array.from({ length: MAX_LEVEL + 1 }, (_, i) => (
-                        <span
-                          key={i}
-                          className={`h-3 w-3 rounded-full transition-colors ${i < level ? '' : 'bg-stone-200'}`}
-                          style={i < level ? { backgroundColor: AREA_COLORS[area.id] } : undefined}
-                        />
-                      ))}
-                    </div>
+                    <span className="w-8 text-center text-xl font-bold tabular-nums" style={{ color: AREA_COLORS[area.id] }}>
+                      {level}
+                    </span>
                     <button
                       onClick={() => dispatch({ type: 'SET_LEVEL', area: area.id, level: level + 1 })}
                       disabled={level >= maxUp}
@@ -159,7 +203,8 @@ export function AllocationScreen({ state, dispatch }: { state: GameState; dispat
 export function FeedbackScreen({ state, onNext }: { state: GameState; onNext: () => void }) {
   const { t } = useLanguage();
   const area = t.areas[state.feedbackIdx];
-  const cell = area.feedback[state.turn - 1][state.draft[area.id]];
+  const cum = cumulativeOf(state.history)[area.id];
+  const cell = area.feedback[state.turn - 1][levelFor(cum, area.thresholds)];
   const isLast = state.feedbackIdx === AREA_ORDER.length - 1;
   return (
     <ScreenShell
@@ -269,6 +314,10 @@ export function ScoreScreen({ state, onNext }: { state: GameState; onNext: () =>
       kicker={t.ui.finalScore}
       children={
         <div>
+          <div className="mb-6 flex items-center gap-4">
+            <FaceAvatar kind="investor" value={state.investor} size={72} />
+            <FaceAvatar kind="stakeholder" value={state.stakeholder} size={72} />
+          </div>
           <p className="mb-8 text-2xl font-bold leading-snug text-stone-900">{ending}</p>
           <div className="space-y-3 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
             <p className="text-stone-700">{t.ui.finalInvestor(Math.max(0, state.investor), t.endings.averageInvestor)}</p>

@@ -20,6 +20,7 @@ const zh: GameContent = {
     tutorialPlay: '开始',
     allocateTitle: '把资源分配到',
     remaining: '剩余资源',
+    cumulative: (cum, lv) => `累计投入 ${cum} · 已达 ${lv} 级`,
     confirm: '完成分配',
     yearFollows: '接下来这一年，工厂沿着你设定的优先级运转：',
     eventTag: '突发事件',
@@ -41,7 +42,7 @@ const zh: GameContent = {
       '你是恒捷智造的创始人兼 CEO，公司正准备 IPO。你必须带领工厂持续增长，才能满足投资者的期待。投资者初始支持度为 5——如果降到 0，你就出局。',
       '但工厂不只属于股东。你还有几千名工人、客户、供应商和厂区所在的社区要顾及——利益相关者的初始支持度同样是 5，降到 0 同样出局。',
       '未来四年，你要在短期订单、环保减排、员工福祉和智能化改造之间不断取舍。每个决定都会同时影响这两群人。',
-      '每回合你有一笔资源（资金、产能和管理精力）。把它分配到四个领域，然后看看投资者和利益相关者作何反应。祝好运！',
+      '每回合你有一笔资源（资金、产能和管理精力），把它分配到四个领域。投入会逐年累计——累计越多，该领域达到的等级越高，四项最终都可以升满。然后看看投资者和利益相关者作何反应。祝好运！',
     ],
   },
   turns: [
@@ -74,6 +75,7 @@ const zh: GameContent = {
     {
       id: 'growth',
       name: '短期订单与交付',
+      thresholds: [1, 4, 6],
       feedback: [
         [
           { text: '招股书里你连产能爬坡计划都不敢写，投资者大为光火。', impact: { investor: -1 } },
@@ -104,6 +106,7 @@ const zh: GameContent = {
     {
       id: 'environment',
       name: '环保与减排',
+      thresholds: [1, 3, 5],
       feedback: [
         [
           { text: '环保组织盯上你的电镀车间，把你列入重点排污观察名单。', impact: { stakeholder: -1 } },
@@ -134,6 +137,7 @@ const zh: GameContent = {
     {
       id: 'social',
       name: '员工与社区',
+      thresholds: [1, 3, 5],
       feedback: [
         [
           { text: '上市前夜只谈订单和利润，车间里的抱怨声越来越大。', impact: { stakeholder: -1 } },
@@ -164,6 +168,7 @@ const zh: GameContent = {
     {
       id: 'longterm',
       name: '智能化改造',
+      thresholds: [1, 3, 5],
       feedback: [
         [
           { text: '你不投智能化改造，招股书里"先进制造"四个字显得心虚。', impact: { investor: -0.5 } },
