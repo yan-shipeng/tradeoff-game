@@ -6,13 +6,16 @@
 // 3. 只用浏览器原生 fetch，不引入任何 SDK —— 没有依赖，也就不存在"装不上/打不进包"的问题。
 //
 // 后端选用 kvdb.io（免费、免注册的键值存储，明确支持浏览器跨域直连）：
-//   - 写：PUT  https://kvdb.io/<bucket>/s_<playerId>      正文为一条榜单记录的 JSON
+//   - 写：PUT  https://kvdb.io/<bucket>/s_<玩家身份>      正文为一条榜单记录的 JSON
 //   - 读：GET  https://kvdb.io/<bucket>/?format=json&values=1
 //         一次请求拿回全部 [[key, value], ...]，不必逐条取，避免 N+1 请求
 //
-// 为什么是"一位玩家一个 key"而不是"整榜一个文档"：
+// 为什么是"一个身份一个 key"而不是"整榜一个文档"：
 //   40 个学生几乎同时交卷时，整榜文档需要"读-改-写"，会互相覆盖丢分；
-//   一人一键则是各自独立写入，天然没有竞争。playerId 固定，重复提交即覆盖，不会堆行。
+//   一人一键则是各自独立写入，天然没有竞争。
+//
+// 这里的"玩家身份"= 本机标识 + 名号（见 leaderboard.identityOf），由调用方传入：
+//   同一身份重复提交是覆盖，不会堆行；换个名号就是另一个身份，各占一行。
 
 import {
   entryFromState,
@@ -67,6 +70,20 @@ async function kvFetch(path: string, init?: RequestInit): Promise<Response> {
   }
 }
 
+/** 读取云端已存的同一身份记录（单键读取，不受列表接口缓存影响） */
+async function readEntry(playerId: string): Promise<LeaderboardEntry | null> {
+  try {
+    const res = await kvFetch(`/${encodeURIComponent(KEY_PREFIX + playerId)}`);
+    if (!res.ok) return null;
+    const raw = await res.text();
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    return isRemoteEntry(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 /** 把一条成绩写入本机榜，再尽力同步到云端；返回合并后的可见榜单 */
 export async function submitScore(
   state: GameState,
@@ -80,12 +97,18 @@ export async function submitScore(
     return { ok: false, entries: local, scope: 'local', reason: 'cloud-not-configured' };
   }
   try {
-    // 以 playerId 为 key 写入：同一玩家重复提交是覆盖，不会在榜上堆出多行。
-    // 用 text/plain 正文可避免 CORS 预检，少一次往返、少一个失败点。
+    // 以"玩家身份"为 key 写入：同一身份重复提交是覆盖，不会在榜上堆出多行；
+    // 名号不同则是不同身份，各占一行。用 text/plain 正文可避免 CORS 预检，少一次往返、少一个失败点。
+    //
+    // 先读回旧值，只写"更高分"：本机榜按"保留更高分"合并，云端也必须一致，
+    // 否则同一个学生重玩出低分后，别人的浏览器会看到低分、他自己的浏览器看到高分。
+    const prev = await readEntry(playerId);
+    const best = prev && prev.score > entry.score ? prev : entry;
+
     const res = await kvFetch(`/${encodeURIComponent(KEY_PREFIX + playerId)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify(entry),
+      body: JSON.stringify(best),
     });
     if (!res.ok) throw new Error(`kvdb write ${res.status}`);
     const remote = await fetchRemote();

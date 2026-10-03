@@ -1,5 +1,5 @@
 // 无头逻辑测试：模拟完整 4 回合游戏，逐项断言计分与事件触发
-import { makeReducer, initialGameState, zh, en, scoreOf, entryFromState, normalizeName, sortEntries, mergeEntries, rankOf, NAME_MAX } from './bundle.mjs';
+import { makeReducer, initialGameState, zh, en, scoreOf, entryFromState, normalizeName, sortEntries, mergeEntries, rankOf, identityOf, NAME_MAX } from './bundle.mjs';
 
 let failures = 0;
 function assert(cond, msg) {
@@ -169,6 +169,28 @@ const mergedBoard = mergeEntries(
 );
 assert(mergedBoard.length === 2, `合并后去重为 2 条 (实际 ${mergedBoard.length})`);
 assert(mergedBoard[0].playerId === 'a' && mergedBoard[0].score === 16, '同一玩家保留积分更高的记录');
+
+// ---------- 玩家身份 = 本机标识 + 名号 ----------
+// 回归：曾只用本机标识当身份，导致同一台设备上换个名号会覆盖同一行，
+// 榜上永远只有一条记录（老师试玩 / 几个同学共用一台电脑时必现）。
+const devA = 'p_dev_a';
+assert(identityOf(devA, '小明') !== identityOf(devA, '小红'), '同一设备换名号 = 不同身份（应各占一行）');
+assert(identityOf(devA, '小明') === identityOf(devA, '小明'), '同一设备同名 = 同一身份（重玩应覆盖而非堆行）');
+assert(identityOf('p_dev_a', '小明') !== identityOf('p_dev_b', '小明'), '不同设备同名 = 不同身份（班里重名不互相覆盖）');
+
+// 同一设备上两个名号，合并后必须是两条（旧实现会塌成一条）
+const twoNames = mergeEntries(
+  [entryFromState({ ...initialGameState, investor: 6, stakeholder: 5, failed: null }, identityOf(devA, '小明'), '小明', 1000)],
+  [entryFromState({ ...initialGameState, investor: 8, stakeholder: 7, failed: null }, identityOf(devA, '小红'), '小红', 2000)],
+);
+assert(twoNames.length === 2, `同一设备两个名号合并后是 2 条 (实际 ${twoNames.length})`);
+
+// 同名重玩：只保留积分更高的一条，且不新增行
+const replay = mergeEntries(
+  [entryFromState({ ...initialGameState, investor: 6, stakeholder: 5, failed: null }, identityOf(devA, '小明'), '小明', 1000)],
+  [entryFromState({ ...initialGameState, investor: 1, stakeholder: 1, failed: null }, identityOf(devA, '小明'), '小明', 2000)],
+);
+assert(replay.length === 1 && replay[0].score === 11, `同名重玩覆盖为 1 条且保留高分 (实际 ${replay.length} 条 / ${replay[0]?.score})`);
 
 // ---------- 名号/排行榜的状态机流转 ----------
 const lbReducer = makeReducer(zh);
