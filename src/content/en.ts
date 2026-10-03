@@ -40,7 +40,7 @@ const en: GameContent = {
     impactInvestor: 'Investors',
     impactStakeholder: 'Stakeholders',
     nameTitle: 'Pick a name to play under',
-    nameHint: 'Your name and score go on the leaderboard so classmates can compare. It is stored on this device only — no sign-up needed.',
+    nameHint: 'Your name and score go on the leaderboard so classmates can compare. Your name is visible to the whole class — no sign-up needed.',
     nameLabel: 'Your name',
     namePlaceholder: 'e.g. Hengjie Team 3 · Lin',
     nameConfirm: 'Start game',

@@ -2,11 +2,17 @@
 //
 // 设计原则：
 // 1. 本机榜是唯一可靠的数据源；云端只是把它"共享出去"，连不上就静默降级。
-// 2. 云服务未开通时（cloudConfig 为 null），所有函数直接走本机路径，不报错。
-// 3. SDK 用动态 import 加载：没装 SDK / 装不上，也只影响云端同步，不影响打包与游戏。
+// 2. 云服务未配置时（CLOUD_CONFIG 为 null），所有函数直接走本机路径，不报错。
+// 3. 只用浏览器原生 fetch，不引入任何 SDK —— 没有依赖，也就不存在"装不上/打不进包"的问题。
 //
-// 接入云端时只需一步：把 cloud-service 返回的 publicConfig 填进 CLOUD_CONFIG。
-// 其余代码无需改动。
+// 后端选用 kvdb.io（免费、免注册的键值存储，明确支持浏览器跨域直连）：
+//   - 写：PUT  https://kvdb.io/<bucket>/s_<playerId>      正文为一条榜单记录的 JSON
+//   - 读：GET  https://kvdb.io/<bucket>/?format=json&values=1
+//         一次请求拿回全部 [[key, value], ...]，不必逐条取，避免 N+1 请求
+//
+// 为什么是"一位玩家一个 key"而不是"整榜一个文档"：
+//   40 个学生几乎同时交卷时，整榜文档需要"读-改-写"，会互相覆盖丢分；
+//   一人一键则是各自独立写入，天然没有竞争。playerId 固定，重复提交即覆盖，不会堆行。
 
 import {
   entryFromState,
@@ -18,67 +24,47 @@ import {
 import type { GameState } from './state';
 
 /**
- * 云服务公开配置。endpoint 与 publishableKey 都来自云服务的 publicConfig，
- * 二者均**必须**传入客户端初始化；publishableKey 只标识"哪个应用"，本身不含权限，
- * 服务端会做严格 Origin 校验，因此可以放在前端源码里。
+ * 云端存储配置。
  *
- * 为 null 时 = 云端未开通，排行榜仅本机可见。
+ * bucket 是 kvdb.io 的桶 ID：它只标识"哪个班/哪个游戏的榜"，本身不含任何密钥，
+ * 可以安全地放在前端源码里（前端产物本来就会暴露它）。
+ *
+ * 为 null 时 = 云端未配置，排行榜仅本机可见。
  */
-export const CLOUD_CONFIG: { endpoint: string; publishableKey: string } | null = null;
+export const CLOUD_CONFIG: { bucket: string } | null = {
+  bucket: 'WHYadeFF5ToQKYZtsZM4mU',
+};
+
+/** kvdb.io 数据面根地址 */
+const BASE = 'https://kvdb.io';
+
+/** 单条记录的 key 前缀：便于将来在同一桶内存放其他用途的键而不冲突 */
+const KEY_PREFIX = 's_';
+
+/** 网络超时（毫秒）。机房网络慢时宁可降级到本机榜，也不要让学生干等 */
+const TIMEOUT_MS = 8000;
 
 /** 云端是否已配置（只影响 UI 上那句说明文字） */
 export function isCloudConfigured(): boolean {
   return CLOUD_CONFIG !== null;
 }
 
-/** 集合名：玩家每人的最高分记录 */
-const COLLECTION = 'scores';
-
 export type SyncResult =
   | { ok: true; entries: LeaderboardEntry[]; scope: 'cloud' }
   | { ok: false; entries: LeaderboardEntry[]; scope: 'local'; reason: string };
 
-// 单例 client：SDK 初始化一次，所有调用复用（见 cloud-service 约定）。
-// 缓存 Promise<CloudClient | null>：null 表示"不可用"，调用方据此降级，不重复重试。
-let clientPromise: Promise<CloudClient | null> | null = null;
-
-interface CloudDatabase {
-  collection(name: string): {
-    doc(id: string): { set(data: Record<string, unknown>): Promise<unknown> };
-    orderBy(field: string, direction: 'asc' | 'desc'): {
-      limit(n: number): { get(): Promise<{ data: unknown[] }> };
-    };
-  };
-}
-
-interface CloudClient {
-  database(): CloudDatabase;
-}
-
-/**
- * 懒加载并初始化 SDK。任何一步失败都返回 null（调用方据此降级），不抛出。
- *
- * 动态 import 用变量拼接路径，让打包器无法静态解析：
- * SDK 尚未安装 / 未开通云服务时，构建与运行都不受影响。
- * 打包器在看到无法解析的裸包名时只会尝试解析并在失败时报错；
- * 这里通过外部化 + 运行时 try/catch 双保险确保"没有云端也能正常出包"。
- */
-async function getClient(): Promise<CloudClient | null> {
-  if (!CLOUD_CONFIG) return null;
-  if (!clientPromise) {
-    clientPromise = (async () => {
-      // 变量拼接：避免打包器在构建期静态解析这个可选依赖
-      const pkg = ['@tencent-ai', 'workbuddy-cloud-sdk'].join('/');
-      const mod = (await import(/* @vite-ignore */ pkg)) as {
-        createWorkBuddyCloud?: (c: typeof CLOUD_CONFIG) => CloudClient;
-      };
-      const create = mod.createWorkBuddyCloud;
-      if (!create) throw new Error('cloud sdk missing createWorkBuddyCloud');
-      // endpoint 与 publishableKey 必须同时传入，缺一不可
-      return create({ endpoint: CLOUD_CONFIG!.endpoint, publishableKey: CLOUD_CONFIG!.publishableKey });
-    })().catch(() => null);
+/** 带超时的 fetch：任何失败都表现为抛出，由调用方统一降级 */
+async function kvFetch(path: string, init?: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    return await fetch(`${BASE}/${CLOUD_CONFIG!.bucket}${path}`, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
   }
-  return clientPromise;
 }
 
 /** 把一条成绩写入本机榜，再尽力同步到云端；返回合并后的可见榜单 */
@@ -90,13 +76,18 @@ export async function submitScore(
   const entry = entryFromState(state, playerId, name);
   const local = writeLocalEntry(entry);
 
-  const client = await getClient();
-  if (!client) {
+  if (!CLOUD_CONFIG) {
     return { ok: false, entries: local, scope: 'local', reason: 'cloud-not-configured' };
   }
   try {
-    // 以 playerId 为主键写入：同一玩家重复提交是覆盖，不会在榜上堆出多行
-    await client.database().collection(COLLECTION).doc(playerId).set({ ...entry });
+    // 以 playerId 为 key 写入：同一玩家重复提交是覆盖，不会在榜上堆出多行。
+    // 用 text/plain 正文可避免 CORS 预检，少一次往返、少一个失败点。
+    const res = await kvFetch(`/${encodeURIComponent(KEY_PREFIX + playerId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(entry),
+    });
+    if (!res.ok) throw new Error(`kvdb write ${res.status}`);
     const remote = await fetchRemote();
     return { ok: true, entries: mergeEntries(local, remote), scope: 'cloud' };
   } catch (err) {
@@ -109,13 +100,28 @@ export async function submitScore(
   }
 }
 
-/** 拉取云端榜单（取积分最高的若干条） */
+/** 拉取云端榜单（取积分最高的若干条）。任何异常都返回空数组，绝不打断游戏 */
 export async function fetchRemote(limit = 100): Promise<LeaderboardEntry[]> {
-  const client = await getClient();
-  if (!client) return [];
+  if (!CLOUD_CONFIG) return [];
   try {
-    const res = await client.database().collection(COLLECTION).orderBy('score', 'desc').limit(limit).get();
-    return (res.data ?? []).filter(isRemoteEntry);
+    const res = await kvFetch('/?format=json&values=1');
+    if (!res.ok) return [];
+    const pairs: unknown = await res.json();
+    if (!Array.isArray(pairs)) return [];
+
+    const out: LeaderboardEntry[] = [];
+    for (const pair of pairs) {
+      if (!Array.isArray(pair) || pair.length < 2) continue;
+      const raw = pair[1];
+      if (typeof raw !== 'string') continue;
+      try {
+        const parsed: unknown = JSON.parse(raw);
+        if (isRemoteEntry(parsed)) out.push(parsed);
+      } catch {
+        /* 单条脏数据不影响整榜 */
+      }
+    }
+    return out.sort((a, b) => b.score - a.score).slice(0, limit);
   } catch {
     return [];
   }
@@ -125,7 +131,9 @@ export async function fetchRemote(limit = 100): Promise<LeaderboardEntry[]> {
  * 读取榜单：优先云端（全班可见），失败则退回本机榜。
  * UI 据此决定显示"全班排行"还是"本机排行"。
  */
-export async function loadLeaderboard(playerId: string): Promise<{ entries: LeaderboardEntry[]; scope: 'cloud' | 'local'; playerId: string }> {
+export async function loadLeaderboard(
+  playerId: string,
+): Promise<{ entries: LeaderboardEntry[]; scope: 'cloud' | 'local'; playerId: string }> {
   if (!CLOUD_CONFIG) {
     return { entries: readLocalEntries(), scope: 'local', playerId };
   }
@@ -142,5 +150,13 @@ export async function loadLeaderboard(playerId: string): Promise<{ entries: Lead
 function isRemoteEntry(v: unknown): v is LeaderboardEntry {
   if (typeof v !== 'object' || v === null) return false;
   const o = v as Record<string, unknown>;
-  return typeof o.playerId === 'string' && typeof o.name === 'string' && typeof o.score === 'number';
+  return (
+    typeof o.playerId === 'string' &&
+    typeof o.name === 'string' &&
+    typeof o.score === 'number' &&
+    typeof o.investor === 'number' &&
+    typeof o.stakeholder === 'number' &&
+    typeof o.failed === 'boolean' &&
+    typeof o.at === 'number'
+  );
 }

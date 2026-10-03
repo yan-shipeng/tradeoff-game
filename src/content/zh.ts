@@ -40,7 +40,7 @@ const zh: GameContent = {
     impactInvestor: '投资者',
     impactStakeholder: '利益相关者',
     nameTitle: '先给自己起个名号',
-    nameHint: '名号和积分会进入排行榜，方便同学们互相比一比。名号只存在这台设备上，不需要注册。',
+    nameHint: '名号和积分会进入排行榜，方便同学们互相比一比。名号会显示给全班同学看，不需要注册。',
     nameLabel: '你的名号',
     namePlaceholder: '例如：恒捷三班·小林',
     nameConfirm: '开始游戏',
